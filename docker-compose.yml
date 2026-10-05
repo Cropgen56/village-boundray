@@ -1,0 +1,25 @@
+services:
+  boundary-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime          # use the lean runtime stage
+    image: mh-boundary-api:latest
+    container_name: mh-boundary-api
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Data is baked into the image; no volume mount needed.
+    # Uncomment below to mount local data at runtime instead
+    # (useful during development to avoid rebuilding for data changes):
+    # volumes:
+    #   - ./data:/home/appuser/app/data:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s      # allow time for data load at startup

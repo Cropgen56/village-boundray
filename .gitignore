@@ -1,0 +1,89 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.pdb
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# Conda
+.conda/
+conda-meta/
+
+
+# FastAPI / Uvicorn
+*.log
+uvicorn.log
+
+
+# Large data files  ← GeoJSON files are too big for git (69MB + 78MB)
+data/*.geojson
+data/*.json
+data/*.shp
+data/*.dbf
+data/*.shx
+data/*.prj
+data/*.cpg
+data/*.gpkg
+data/*.csv
+
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+
+
+# Type checking / linting
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Desktop.ini
+$RECYCLE.BIN/
+
+
+# Misc
+*.bak
+*.tmp
+*.orig
+scratch/
