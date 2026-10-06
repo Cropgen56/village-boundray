@@ -3,3 +3,4 @@ uvicorn[standard]
 geopandas
 shapely
 pyproj
+google-cloud-storage

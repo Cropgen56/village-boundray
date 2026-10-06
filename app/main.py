@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import APP_TITLE, APP_DESCRIPTION, APP_VERSION
 from app.routers import boundary
 from app.services.data_loader import geo_store
 
@@ -34,7 +33,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=== Starting up: loading geo data …")
-    geo_store.load()
+    try:
+        geo_store.load()
+    except Exception:
+        # Abort startup — never serve requests without boundary data
+        logger.exception("=== Startup failed: could not load boundary data.")
+        raise
     logger.info("=== Startup complete. API is ready.")
     yield
     logger.info("=== Shutting down.")
@@ -45,13 +49,17 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 
 def create_app() -> FastAPI:
+    # Only the /boundary route is exposed, plus Swagger UI at /docs
     app = FastAPI(
-        title=APP_TITLE,
-        description=APP_DESCRIPTION,
-        version=APP_VERSION,
+        title="Maharashtra Boundary API",
+        description=(
+            "Given a coordinate (lat/lng) in Maharashtra, returns the boundary "
+            "at village, taluka (sub-district), or district level."
+        ),
+        version="1.0.0",
         lifespan=lifespan,
         docs_url="/docs",
-        redoc_url="/redoc",
+        redoc_url=None,
     )
 
     # CORS – allow all origins for development; tighten in production
@@ -62,24 +70,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Register routers
     app.include_router(boundary.router)
-
-    @app.get("/", tags=["Health"])
-    async def root():
-        return {
-            "service": APP_TITLE,
-            "version": APP_VERSION,
-            "status": "ok",
-            "docs": "/docs",
-        }
-
-    @app.get("/health", tags=["Health"])
-    async def health():
-        return {
-            "status": "ok",
-            "data_loaded": geo_store.is_loaded,
-        }
 
     return app
 

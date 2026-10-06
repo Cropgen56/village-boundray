@@ -3,36 +3,31 @@ spatial.py
 ----------
 All spatial query logic lives here.
 Depends on GeoDataStore (data_loader.py) being loaded before use.
+
+Responses are assembled directly as JSON bytes: geometry is serialized
+with shapely's native (GEOS) GeoJSON writer, and the large taluka /
+district geometries are serialized once and cached.
 """
 
 import json
-import logging
+from functools import lru_cache
 from typing import Optional
 
+import shapely
 from shapely.geometry import Point
 
-from app.core.config import (
-    COL_DISTRICT,
-    COL_TALUKA,
-    COL_NAME,
-    COL_STATE,
-    COL_CEN,
-    SUPPORTED_LEVELS,
-)
 from app.services.data_loader import geo_store
-
-logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def get_boundary(lat: float, lng: float, level: str) -> Optional[dict]:
+def get_boundary(lat: float, lng: float, level: str) -> Optional[bytes]:
     """
     Find the boundary at the requested administrative level for the given
-    coordinate and return an RFC 7946 GeoJSON Feature dict, or None if
-    no feature matches.
+    coordinate and return an RFC 7946 GeoJSON Feature as UTF-8 bytes, or
+    None if no feature matches.
 
     Parameters
     ----------
@@ -40,114 +35,76 @@ def get_boundary(lat: float, lng: float, level: str) -> Optional[dict]:
     lng   : Longitude (WGS84)
     level : One of 'village', 'taluka', 'district'
     """
-    if level not in SUPPORTED_LEVELS:
-        raise ValueError(
-            f"Unsupported level '{level}'. Choose from: {sorted(SUPPORTED_LEVELS)}"
-        )
-
-    point = Point(lng, lat)  # Shapely uses (x=lng, y=lat)
-
-    # Step 1: find the village that contains the point
-    village_row = _find_village(point)
-    if village_row is None:
+    idx = _find_village(Point(lng, lat))  # Shapely uses (x=lng, y=lat)
+    if idx is None:
         return None
 
-    # Step 2: fetch the geometry + build proper GeoJSON Feature at requested level
-    return _build_feature(village_row, level)
+    name, taluka, district, state, census_code = geo_store.village_attrs[idx]
+
+    if level == "village":
+        geometry = _village_geojson(idx)
+        props = {
+            "level":       level,
+            "name":        name,
+            "taluka":      taluka,
+            "district":    district,
+            "state":       state,
+            "census_code": census_code,
+        }
+    elif level == "taluka":
+        geometry = _taluka_geojson(district, taluka)
+        props = {
+            "level":                level,
+            "taluka":               taluka,
+            "district":             district,
+            "state":                state,
+            "queried_village":      name,
+            "queried_village_code": census_code,
+        }
+    else:  # district
+        geometry = _district_geojson(district)
+        props = {
+            "level":                level,
+            "district":             district,
+            "state":                state,
+            "queried_village":      name,
+            "queried_village_code": census_code,
+        }
+
+    if geometry is None:
+        return None
+
+    return (
+        '{"type":"Feature","geometry":' + geometry
+        + ',"properties":' + json.dumps(props, ensure_ascii=False) + "}"
+    ).encode("utf-8")
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _find_village(point: Point) -> Optional[dict]:
+def _find_village(point: Point) -> Optional[int]:
     """
-    Use STRtree to quickly narrow candidates, then do exact containment check.
-    Returns the matched GeoDataFrame row as a dict, or None.
+    Return the index of the village polygon containing the point, or None.
+    The STRtree filters by bounding box and evaluates the exact predicate
+    in C; the lowest index wins if polygons overlap.
     """
-    tree = geo_store.village_tree
-    gdf  = geo_store.village_gdf
-
-    # STRtree.query returns indices of geometries whose bboxes intersect the point
-    candidate_indices = tree.query(point)
-
-    for idx in candidate_indices:
-        geom = gdf.geometry.iloc[idx]
-        if geom.contains(point):
-            return gdf.iloc[idx].to_dict()
-
-    return None
+    hits = geo_store.village_tree.query(point, predicate="within")
+    return int(hits.min()) if len(hits) else None
 
 
-def _build_feature(village_row: dict, level: str) -> Optional[dict]:
-    """
-    Build an RFC 7946 GeoJSON Feature for the requested admin level.
-    All metadata goes into the `properties` object.
-    """
-    # --- resolve the geometry row for this level ---
-    if level == "village":
-        geom_row = village_row
-    elif level == "taluka":
-        district = village_row.get(COL_DISTRICT)
-        taluka   = village_row.get(COL_TALUKA)
-        gdf  = geo_store.taluka_gdf
-        mask = (gdf[COL_DISTRICT] == district) & (gdf[COL_TALUKA] == taluka)
-        matched = gdf[mask]
-        if matched.empty:
-            logger.warning("No taluka geometry for district=%s taluka=%s", district, taluka)
-            return None
-        geom_row = matched.iloc[0].to_dict()
-    elif level == "district":
-        district = village_row.get(COL_DISTRICT)
-        gdf  = geo_store.district_gdf
-        mask = gdf[COL_DISTRICT] == district
-        matched = gdf[mask]
-        if matched.empty:
-            logger.warning("No district geometry for district=%s", district)
-            return None
-        geom_row = matched.iloc[0].to_dict()
-    else:
-        return None
+def _village_geojson(idx: int) -> str:
+    return shapely.to_geojson(geo_store.village_geoms[idx])
 
-    # --- serialize geometry ---
-    geometry = geom_row.get("geometry")
-    if geometry is None:
-        return None
 
-    geom_dict = json.loads(json.dumps(geometry.__geo_interface__))
+@lru_cache(maxsize=None)
+def _taluka_geojson(district: str, taluka: str) -> Optional[str]:
+    geom = geo_store.taluka_geoms.get((district, taluka))
+    return None if geom is None else shapely.to_geojson(geom)
 
-    # --- build properties (all metadata lives here, per RFC 7946) ---
-    props: dict = {"level": level}
 
-    # Always include the full admin hierarchy from the original village hit
-    if level == "village":
-        props["name"]         = village_row.get(COL_NAME)
-        props["taluka"]       = village_row.get(COL_TALUKA)
-        props["district"]     = village_row.get(COL_DISTRICT)
-        props["state"]        = village_row.get(COL_STATE)
-        props["census_code"]  = (
-            str(village_row[COL_CEN]) if village_row.get(COL_CEN) else None
-        )
-    elif level == "taluka":
-        props["taluka"]   = village_row.get(COL_TALUKA)
-        props["district"] = village_row.get(COL_DISTRICT)
-        props["state"]    = village_row.get(COL_STATE)
-        # include the queried village as reference
-        props["queried_village"]      = village_row.get(COL_NAME)
-        props["queried_village_code"] = (
-            str(village_row[COL_CEN]) if village_row.get(COL_CEN) else None
-        )
-    elif level == "district":
-        props["district"] = village_row.get(COL_DISTRICT)
-        props["state"]    = village_row.get(COL_STATE)
-        props["queried_village"]      = village_row.get(COL_NAME)
-        props["queried_village_code"] = (
-            str(village_row[COL_CEN]) if village_row.get(COL_CEN) else None
-        )
-
-    # --- assemble RFC 7946 Feature ---
-    return {
-        "type":       "Feature",
-        "geometry":   geom_dict,
-        "properties": props,
-    }
+@lru_cache(maxsize=None)
+def _district_geojson(district: str) -> Optional[str]:
+    geom = geo_store.district_geoms.get(district)
+    return None if geom is None else shapely.to_geojson(geom)

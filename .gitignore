@@ -1,89 +1,41 @@
-
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.pyo
-*.pyd
-*.pdb
-
-# Distribution / packaging
+*.egg-info/
 dist/
 build/
-*.egg-info/
-*.egg
-.eggs/
-MANIFEST
 
 # Virtual environments
 .venv/
 venv/
-env/
-ENV/
+
+# Local environment (copy from .env.example)
 .env
 
-# Conda
-.conda/
-conda-meta/
+# Datasets live only in Cloud Storage
+# (gs://cropgen-maharashtra-boundary/boundary-data/), never in git
+data/
+*.geojson
 
+# Google Cloud credentials — never commit (auth uses ADC)
+application_default_credentials.json
+*service-account*.json
+*credentials*.json
+*-sa-key.json
 
-# FastAPI / Uvicorn
-*.log
-uvicorn.log
-
-
-# Large data files  ← GeoJSON files are too big for git (69MB + 78MB)
-data/*.geojson
-data/*.json
-data/*.shp
-data/*.dbf
-data/*.shx
-data/*.prj
-data/*.cpg
-data/*.gpkg
-data/*.csv
-
-
-# Jupyter / IPython
-.ipynb_checkpoints/
-*.ipynb
-
-
-# Testing
+# Tooling caches
 .pytest_cache/
-.coverage
-htmlcov/
-.tox/
-coverage.xml
-*.cover
-
-
-# Type checking / linting
 .mypy_cache/
 .ruff_cache/
-.pytype/
+.coverage
+htmlcov/
 
+# Logs
+*.log
 
-# IDE & editors
+# IDE / OS
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
 .DS_Store
 Thumbs.db
-
-
-# OS
-.DS_Store
-.AppleDouble
-.LSOverride
-Desktop.ini
-$RECYCLE.BIN/
-
-
-# Misc
-*.bak
-*.tmp
-*.orig
-scratch/

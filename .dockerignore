@@ -1,48 +1,37 @@
-# Git / version control
+# Only app/, run.py and requirements.txt are needed in the image.
+
+# Version control / Docker files
 .git/
 .gitignore
-
-# Python caches
-__pycache__/
-*.py[cod]
-*.pyo
-*.pdb
-.eggs/
-*.egg-info/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Test artefacts
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Type checking
-.mypy_cache/
-.ruff_cache/
-
-# IDE / editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker itself
+.dockerignore
 Dockerfile
 docker-compose.yml
-.dockerignore
 
-# Docs / scratch
+# Python caches / virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Datasets are downloaded from Cloud Storage at startup — never bake them in
+data/
+*.geojson
+
+# Local env / credentials
+.env
+.env.*
+*credentials*.json
+*service-account*.json
+
+# Dev-only files
+scripts/
+requirements-dev.txt
 README.md
-scratch/
+
+# Tooling caches / IDE / OS
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+.DS_Store

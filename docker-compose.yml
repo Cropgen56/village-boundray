@@ -11,15 +11,19 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
-    # Data is baked into the image; no volume mount needed.
-    # Uncomment below to mount local data at runtime instead
-    # (useful during development to avoid rebuilding for data changes):
-    # volumes:
-    #   - ./data:/home/appuser/app/data:ro
+      # Boundary datasets are downloaded from this private bucket at startup
+      - GCS_BUCKET_NAME=cropgen-maharashtra-boundary
+      - GCS_MH1_PATH=boundary-data/mh1.geojson
+      - GCS_MH2_PATH=boundary-data/mh2.geojson
+    # Local Docker only: reuse the ADC created by
+    # `gcloud auth application-default login` (read-only, never copied into
+    # the image). On Cloud Run the attached service account is used instead.
+    volumes:
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/home/appuser/.config/gcloud/application_default_credentials.json:ro
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+             "import socket; socket.create_connection(('localhost', 8000), 5)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s      # allow time for data load at startup
+      start_period: 180s      # allow time for GCS download + data load at startup

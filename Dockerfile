@@ -54,9 +54,6 @@ WORKDIR /home/appuser/app
 COPY app/        ./app/
 COPY run.py      ./run.py
 
-# Copy data files (large GeoJSON — ensure they exist locally before building)
-COPY data/       ./data/
-
 # Switch to non-root
 RUN chown -R appuser:appuser /home/appuser/app
 USER appuser
@@ -64,9 +61,13 @@ USER appuser
 # Expose API port
 EXPOSE 8000
 
-# Health check — waits for startup (data load takes ~60-90s)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" \
+# GeoJSON data is NOT in the image: it is downloaded from Cloud Storage at
+# startup using Application Default Credentials (GCS_* env vars).
+
+# Health check — uvicorn only opens the port after data has loaded,
+# so a TCP connect means the API is ready (no separate /health route)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD python -c "import socket; socket.create_connection(('localhost', 8000), 5)" \
     || exit 1
 
 # Start the server
