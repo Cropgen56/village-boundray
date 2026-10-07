@@ -15,7 +15,7 @@ if __name__ == "__main__":
         "app.main:app",
         env_file=".env",    # GCS_* settings (see .env.example); ignored if absent
         host="0.0.0.0",
-        port=8000,
+        port=8080,
         reload=False,       # set True for development with auto-reload
         log_level="info",
     )

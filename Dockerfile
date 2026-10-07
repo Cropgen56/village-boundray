@@ -59,7 +59,7 @@ RUN chown -R appuser:appuser /home/appuser/app
 USER appuser
 
 # Expose API port
-EXPOSE 8000
+EXPOSE 8080
 
 # GeoJSON data is NOT in the image: it is downloaded from Cloud Storage at
 # startup using Application Default Credentials (GCS_* env vars).
@@ -67,8 +67,8 @@ EXPOSE 8000
 # Health check — uvicorn only opens the port after data has loaded,
 # so a TCP connect means the API is ready (no separate /health route)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
-    CMD python -c "import socket; socket.create_connection(('localhost', 8000), 5)" \
+    CMD python -c "import socket; socket.create_connection(('localhost', 8080), 5)" \
     || exit 1
 
 # Start the server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
